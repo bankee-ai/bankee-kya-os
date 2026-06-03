@@ -19,8 +19,8 @@ services:
       - CONSENT_SERVICE_URL=http://consent-service:3002
       - AUDIT_SERVICE_URL=http://audit-service:3003
       - HIGH_VALUE_THRESHOLD=10000
-    # No host port binding — internal traffic only via bankee-net
-    # OpenClaw agents on openclaw-net can reach via container name
+    volumes:
+      - bankee-identity:/app/.kya-os:ro   # load persistent DID
     networks:
       - bankee-net
       - openclaw-net
@@ -31,7 +31,8 @@ services:
       - CONSENT_SERVICE_PORT=3002
       - PAYMENT_SERVER_URL=http://payment-server:3001
       - DELEGATION_TTL_SECONDS=3600
-    # No host port binding — accessed via web-ui proxy
+    volumes:
+      - bankee-identity:/app/.kya-os:ro   # same Responsible Party DID as payment server
     networks:
       - bankee-net
     restart: unless-stopped
