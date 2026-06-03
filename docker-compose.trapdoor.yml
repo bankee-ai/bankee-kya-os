@@ -1,0 +1,83 @@
+# Trapdoor007 overlay — extends docker-compose.yml for WSL2 deployment
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.trapdoor.yml up -d
+#
+# What this adds:
+#   - Joins ai-stack_openclaw_net so OpenClaw agents can reach the payment server
+#   - Binds ports only on Tailscale IP (100.101.137.119) for Tailscale access
+#   - Adds the web-ui service on port 3010
+#   - Mounts identity volume for persistent DID
+
+version: '3.9'
+
+services:
+
+  payment-server:
+    environment:
+      - PAYMENT_SERVER_PORT=3001
+      - CONSENT_SERVICE_URL=http://bankee-consent:3002
+      - AUDIT_SERVICE_URL=http://bankee-audit:3003
+      - HIGH_VALUE_THRESHOLD=10000
+    ports:
+      - "127.0.0.1:3001:3001"    # localhost only — accessed via web-ui proxy
+    networks:
+      - bankee-net
+      - openclaw-net             # allows OpenClaw agents to call the payment MCP server
+    restart: unless-stopped
+
+  consent-service:
+    environment:
+      - CONSENT_SERVICE_PORT=3002
+      - PAYMENT_SERVER_URL=http://bankee-payment:3001
+      - DELEGATION_TTL_SECONDS=3600
+    ports:
+      - "127.0.0.1:3002:3002"
+    networks:
+      - bankee-net
+    restart: unless-stopped
+
+  audit-service:
+    environment:
+      - AUDIT_SERVICE_PORT=3003
+    ports:
+      - "127.0.0.1:3003:3003"
+    networks:
+      - bankee-net
+    restart: unless-stopped
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bankee-kya-os-ui
+    command: npx tsx src/web-ui.ts
+    ports:
+      - "100.101.137.119:3010:3010"   # Tailscale-only — accessible at trapdoor007:3010
+      - "127.0.0.1:3010:3010"         # also localhost
+    environment:
+      - WEB_UI_PORT=3010
+      - PAYMENT_SERVER_URL=http://bankee-payment:3001
+      - CONSENT_SERVICE_URL=http://bankee-consent:3002
+      - AUDIT_SERVICE_URL=http://bankee-audit:3003
+    depends_on:
+      - payment-server
+      - consent-service
+      - audit-service
+    networks:
+      - bankee-net
+    restart: unless-stopped
+    volumes:
+      - bankee-identity:/app/.kya-os:ro
+
+networks:
+  bankee-net:
+    name: bankee-kya-os_net
+    driver: bridge
+  openclaw-net:
+    name: ai-stack_openclaw_net
+    external: true              # join the existing OpenClaw network
+
+volumes:
+  bankee-identity:
+    name: bankee-kya-os_identity
