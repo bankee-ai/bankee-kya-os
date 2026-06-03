@@ -1,0 +1,26 @@
+{
+  "name": "bankee-kya-os",
+  "version": "1.0.0",
+  "description": "End-to-end agentic payment infrastructure: KYA-OS identity + delegation + audit trails over Bankee payment tools",
+  "type": "module",
+  "scripts": {
+    "start:payment-server":  "tsx src/payment-server.ts",
+    "start:consent-service": "tsx src/consent-service.ts",
+    "start:audit-service":   "tsx src/audit-service.ts",
+    "start:all":             "concurrently -n payment,consent,audit -c cyan,yellow,green \"npm run start:payment-server\" \"npm run start:consent-service\" \"npm run start:audit-service\"",
+    "demo":                  "npm run start:all & sleep 4 && tsx src/demo-agent.ts",
+    "generate-identity":     "tsx scripts/generate-identity.ts",
+    "build":                 "tsc",
+    "typecheck":             "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kya-os/mcp": "^1.6.0",
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "concurrently": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

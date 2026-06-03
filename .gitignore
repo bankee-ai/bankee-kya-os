@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.kya-os/
+.env
+*.log

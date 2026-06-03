@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+
+  payment-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx tsx src/payment-server.ts
+    ports:
+      - "3001:3001"
+    environment:
+      - PAYMENT_SERVER_PORT=3001
+      - CONSENT_SERVICE_URL=http://consent-service:3002
+      - AUDIT_SERVICE_URL=http://audit-service:3003
+      - HIGH_VALUE_THRESHOLD=10000
+    volumes:
+      - ./identity:/app/.kya-os:ro
+    depends_on:
+      - audit-service
+    networks:
+      - bankee-kya-os
+
+  consent-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx tsx src/consent-service.ts
+    ports:
+      - "3002:3002"
+    environment:
+      - CONSENT_SERVICE_PORT=3002
+      - PAYMENT_SERVER_URL=http://payment-server:3001
+      - DELEGATION_TTL_SECONDS=3600
+    volumes:
+      - ./identity:/app/.kya-os:ro
+    networks:
+      - bankee-kya-os
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx tsx src/audit-service.ts
+    ports:
+      - "3003:3003"
+    environment:
+      - AUDIT_SERVICE_PORT=3003
+    networks:
+      - bankee-kya-os
+
+  demo-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: npx tsx src/demo-agent.ts
+    environment:
+      - PAYMENT_SERVER_URL=http://payment-server:3001
+      - CONSENT_SERVICE_URL=http://consent-service:3002
+      - AUDIT_SERVICE_URL=http://audit-service:3003
+    depends_on:
+      - payment-server
+      - consent-service
+      - audit-service
+    networks:
+      - bankee-kya-os
+    profiles:
+      - demo  # run with: docker-compose --profile demo up demo-agent
+
+networks:
+  bankee-kya-os:
+    driver: bridge
