@@ -74,8 +74,21 @@ if (TRUSTED_DID_JWKS) {
   }
 }
 
-function getTrustedJwk(did: string): Record<string, string> | null {
-  return trustedJwkCache.get(did) ?? null;
+/**
+ * Return the trusted JWK for a DID, optionally injecting the kid from the
+ * proof so the verifier's kid-match check passes.
+ *
+ * The verifier does:  if (expectedKid && jwk.kid !== expectedKid) return false
+ * Our cached JWK has no kid field → mismatch → signature rejected before the
+ * crypto check even runs.  Injecting the kid from the proof fixes this.
+ */
+function getTrustedJwk(
+  did: string,
+  kid?: string,
+): Record<string, string> | null {
+  const base = trustedJwkCache.get(did);
+  if (!base) return null;
+  return kid ? { ...base, kid } : base;
 }
 
 // Append-only in-memory store
@@ -223,7 +236,9 @@ const httpServer = http.createServer(async (req, res) => {
 
       // Try pre-loaded trusted key first (fast, no network), then fall back
       // to live DID document resolution for unknown DIDs.
-      const jwk = getTrustedJwk(proof.meta.did)
+      // Pass proof.meta.kid so the cached JWK includes the kid field that
+      // CryptoService.verifyJWS requires for its kid-match check.
+      const jwk = getTrustedJwk(proof.meta.did, proof.meta.kid)
         ?? await verifier.fetchPublicKeyFromDID(proof.meta.did);
       if (!jwk) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
