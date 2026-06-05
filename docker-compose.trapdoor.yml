@@ -19,8 +19,9 @@ services:
       - CONSENT_SERVICE_URL=http://consent-service:3002
       - AUDIT_SERVICE_URL=http://audit-service:3003
       - HIGH_VALUE_THRESHOLD=10000
+      - IDENTITY_DID=did:web:bankee.ai     # ← production did:web
     volumes:
-      - bankee-identity:/app/.kya-os:ro   # load persistent DID
+      - bankee-identity:/app/.kya-os:ro
     networks:
       - bankee-net
       - openclaw-net
@@ -31,8 +32,10 @@ services:
       - CONSENT_SERVICE_PORT=3002
       - PAYMENT_SERVER_URL=http://payment-server:3001
       - DELEGATION_TTL_SECONDS=3600
+      - IDENTITY_DID=did:web:bankee.ai     # ← same key, did:web identifier
+      - STATUS_LIST_URL=https://trapdoor007.tailaa28ec.ts.net:3002/api/status-list
     volumes:
-      - bankee-identity:/app/.kya-os:ro   # same Responsible Party DID as payment server
+      - bankee-identity:/app/.kya-os:ro
     networks:
       - bankee-net
     restart: unless-stopped
