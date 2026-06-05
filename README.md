@@ -23,7 +23,7 @@ End-to-end agentic payment infrastructure built on [KYA-OS](https://github.com/d
 - [API reference](#api-reference)
 - [Environment variables](#environment-variables)
 - [Identity management](#identity-management)
-- [Production deployment (Trapdoor007)](#production-deployment-trapdoor007)
+- [Deployment](#deployment)
 - [Connecting to OpenClaw agents](#connecting-to-openclaw-agents)
 - [Contributing / DIF TAAWG](#contributing--dif-taawg)
 - [Links](#links)
@@ -91,7 +91,7 @@ KYA-OS is the MCP binding of the [DIF TAAWG](https://identity.foundation/working
 
 Networks:
   bankee-kya-os_net       — internal service mesh (all 4 containers)
-  ai-stack_openclaw_net   — external join (Trapdoor007 production only)
+  ai-stack_openclaw_net   — external join
                             lets OpenClaw agents reach bankee-payment:3001
 
 Volumes:
@@ -475,11 +475,11 @@ When a human approves a high-value payment the consent service issues a W3C Veri
     }
   },
   "credentialStatus": {
-    "id": "https://trapdoor007.tailaa28ec.ts.net:3002/api/status-list#4",
+    "id": "https://bankee.ai:3002/api/status-list#4",
     "type": "StatusList2021Entry",
     "statusPurpose": "revocation",
     "statusListIndex": "4",
-    "statusListCredential": "https://trapdoor007.tailaa28ec.ts.net:3002/api/status-list"
+    "statusListCredential": "https://bankee.ai:3002/api/status-list"
   },
   "proof": {
     "type": "Ed25519Signature2020",
@@ -684,19 +684,19 @@ Bankee's live DID document: [https://bankee.ai/.well-known/did.json](https://ban
 
 ---
 
-## Production deployment (Trapdoor007)
+## Deployment
 
-Trapdoor007 is a Windows laptop running WSL2, accessible from other nodes in the Bankee infrastructure via [Tailscale](https://tailscale.com) at `100.101.137.119`.
+The Bankee.ai dev environment is a dedicated machine running Docker, accessible across the Bankee infrastructure via Tailscale.
 
 The production overlay (`docker-compose.trapdoor.yml`) extends the base compose file with:
 
 - `IDENTITY_DID=did:web:bankee.ai` on all services
 - `bankee-kya-os_identity` Docker volume (external, pre-populated once) for the persisted Ed25519 key pair
 - Audit service pre-loaded with the trusted public key — no outbound DID resolution from inside Docker
-- Web UI bound to both the Tailscale IP and localhost: `100.101.137.119:3010` and `127.0.0.1:3010`
+- Web UI bound to Tailscale IP and localhost on port 3010
 - Payment server joined to `ai-stack_openclaw_net` (see next section)
 
-**First-time setup on Trapdoor007:**
+**First-time setup:**
 
 ```bash
 # 1. Create the identity volume
@@ -709,7 +709,7 @@ docker run --rm \
   -v "$(pwd)/.kya-os":/src \
   alpine cp /src/identity.json /dest/identity.json
 
-# 3. Start with the Trapdoor overlay
+# 3. Start with the dev environment overlay
 docker-compose -f docker-compose.yml -f docker-compose.trapdoor.yml up -d
 
 # 4. Verify
@@ -720,9 +720,9 @@ curl http://localhost:3001/ | jq .did
 **Access from other Tailscale nodes:**
 
 ```
-Web UI:       http://100.101.137.119:3010
-Audit dash:   http://100.101.137.119:3003
-Payment MCP:  http://100.101.137.119:3001/sse
+Web UI:       http://<tailscale-ip>:3010
+Audit dash:   http://<tailscale-ip>:3003
+Payment MCP:  http://<tailscale-ip>:3001/sse
 ```
 
 **Updating the trusted public key in the audit service:**
@@ -745,7 +745,7 @@ docker-compose -f docker-compose.yml -f docker-compose.trapdoor.yml restart audi
 
 ## Connecting to OpenClaw agents
 
-In production Trapdoor007 runs the [OpenClaw](https://github.com/bankee-ai/openclaw) AI agent orchestrator. The payment server joins the `ai-stack_openclaw_net` Docker network in the Trapdoor overlay, making it reachable at `bankee-payment:3001` from within the OpenClaw network.
+In production Bankee.ai dev environment runs the [OpenClaw](https://github.com/bankee-ai/openclaw) AI agent orchestrator. The payment server joins the `ai-stack_openclaw_net` Docker network in the dev environment overlay, making it reachable at `bankee-payment:3001` from within the OpenClaw network.
 
 OpenClaw agent configuration example:
 
@@ -767,7 +767,7 @@ Or from outside Docker (e.g., a Claude Desktop instance on the same Tailscale ne
   "mcpServers": {
     "bankee-payment": {
       "transport": "sse",
-      "url": "http://100.101.137.119:3001/sse"
+      "url": "http://<tailscale-ip>:3001/sse"
     }
   }
 }
