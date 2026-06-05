@@ -36,6 +36,48 @@ import {
 
 const AUDIT_PORT = parseInt(process.env['AUDIT_SERVICE_PORT'] ?? '3003', 10);
 
+// ── Trusted DID key cache ────────────────────────────────────────────────────
+// Pre-load known public keys so the audit service can verify proofs from
+// did:web DIDs without making outbound HTTP calls to resolve the DID document.
+// Populated from env vars; falls back to network resolution for unknown DIDs.
+//
+// TRUSTED_DID=did:web:bankee.ai
+// TRUSTED_PUBLIC_KEY_B64=d830cXotkWsyv6brbqOwZnRHxgaK6aIx3AzuZaVNP4E=
+//
+// Multiple entries can be set as JSON via TRUSTED_DID_JWKS:
+//   TRUSTED_DID_JWKS={"did:web:bankee.ai":{"kty":"OKP","crv":"Ed25519","x":"..."}}
+
+const trustedJwkCache = new Map<string, Record<string, string>>();
+
+// Single-key shorthand env vars
+const TRUSTED_DID = process.env['TRUSTED_DID'];
+const TRUSTED_PUBLIC_KEY_B64 = process.env['TRUSTED_PUBLIC_KEY_B64'];
+if (TRUSTED_DID && TRUSTED_PUBLIC_KEY_B64) {
+  // Convert standard Base64 → base64url (remove padding, + → -, / → _)
+  const x = TRUSTED_PUBLIC_KEY_B64
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  trustedJwkCache.set(TRUSTED_DID, { kty: 'OKP', crv: 'Ed25519', x });
+  process.stderr.write(`[audit] Trusted key loaded for: ${TRUSTED_DID}\n`);
+}
+
+// JSON map env var for multiple trusted DIDs
+const TRUSTED_DID_JWKS = process.env['TRUSTED_DID_JWKS'];
+if (TRUSTED_DID_JWKS) {
+  try {
+    const map = JSON.parse(TRUSTED_DID_JWKS) as Record<string, Record<string, string>>;
+    for (const [did, jwk] of Object.entries(map)) {
+      trustedJwkCache.set(did, jwk);
+      process.stderr.write(`[audit] Trusted key loaded for: ${did}\n`);
+    }
+  } catch {
+    process.stderr.write(`[audit] Warning: TRUSTED_DID_JWKS is not valid JSON\n`);
+  }
+}
+
+function getTrustedJwk(did: string): Record<string, string> | null {
+  return trustedJwkCache.get(did) ?? null;
+}
+
 // Append-only in-memory store
 interface StoredRecord extends AuditRecord {
   id: string;
@@ -179,7 +221,10 @@ const httpServer = http.createServer(async (req, res) => {
       const body  = await readBody(req);
       const proof = JSON.parse(body) as DetachedProof;
 
-      const jwk = await verifier.fetchPublicKeyFromDID(proof.meta.did);
+      // Try pre-loaded trusted key first (fast, no network), then fall back
+      // to live DID document resolution for unknown DIDs.
+      const jwk = getTrustedJwk(proof.meta.did)
+        ?? await verifier.fetchPublicKeyFromDID(proof.meta.did);
       if (!jwk) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ valid: false, error: 'could_not_resolve_did', did: proof.meta.did }));

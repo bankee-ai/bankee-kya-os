@@ -43,7 +43,9 @@ services:
   audit-service:
     environment:
       - AUDIT_SERVICE_PORT=3003
-    # No host port binding — accessed via web-ui proxy
+      # Pre-loaded trusted key — avoids outbound DID resolution from inside Docker
+      - TRUSTED_DID=did:web:bankee.ai
+      - TRUSTED_PUBLIC_KEY_B64=d830cXotkWsyv6brbqOwZnRHxgaK6aIx3AzuZaVNP4E=
     networks:
       - bankee-net
     restart: unless-stopped
